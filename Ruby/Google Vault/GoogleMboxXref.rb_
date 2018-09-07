@@ -1,0 +1,88 @@
+java_import "java.io.InputStreamReader" # Need this to get at the MBOX data
+java_import "java.io.BufferedReader" # Need this to get at the MBOX data
+
+require 'csv'
+
+# Google Vault documentation https://support.google.com/vault/answer/6099459?hl=en
+
+class GoogleMboxXref
+	def initialize
+		@from_regex = /^From ([0-9]+-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.mbox).*$/
+		@message_id_regex = /^Message-ID: (.*)$/i
+		@message_id_lookup = {}
+	end
+
+	def size
+		return @message_id_lookup.size
+	end
+
+	def from_id_for_message_id(message_id)
+		return @message_id_lookup[message_id]
+	end
+
+	def build_xref(mbox_item)
+		raise "Non Mbox Item Provided" if mbox_item.getType.getName != "application/mbox"
+		Logger.log("Building XREF from #{mbox_item.getName}")
+		binary_info = mbox_item.getBinary
+		binary_data = binary_info.getBinaryData
+		stream_reader = InputStreamReader.new(binary_data.getInputStream,"ASCII")
+		buffered_reader = BufferedReader.new(stream_reader)
+		
+		# Parse MBOX text into records by splitting on "From_" lines
+		begin
+			current_record = nil
+			records = []
+			while line = buffered_reader.readLine
+				if line =~ @from_regex
+					if !current_record.nil?
+						records << current_record
+					end
+					current_record = ""
+				end
+				current_record << line+"\n"
+			end
+			records << current_record
+			reader_success = true
+		ensure
+			buffered_reader.close
+			stream_reader.close
+			binary_data.close
+		end
+
+		Logger.log("\tParsed Records: #{records.size}")
+
+		# For each record determine "From_" and "Message-ID" values
+		records.each do |record|
+			from = nil
+			message_id = nil
+			record.each_line do |record_line|
+				if record_line =~ @from_regex
+					from = record_line.gsub(@from_regex,$1).strip
+					Logger.log("\tFound From_ line: #{from}")
+				elsif record_line =~ @message_id_regex
+					message_id = record_line.gsub(@message_id_regex,$1).strip
+					Logger.log("\tFound Message-ID line: #{message_id}")
+					break
+				end
+			end
+			Logger.log("\t\tAssociating #{message_id} => #{from}")
+			@message_id_lookup[message_id] = from
+		end
+	end
+
+	def save_csv(csv_file)
+		CSV.open(csv_file,"w:utf-8") do |csv|
+			csv << [
+				"From Line",
+				"Message-ID",
+			]
+
+			@message_id_lookup.each do |message_id,from|
+				csv << [
+					from,
+					message_id,
+				]
+			end
+		end
+	end
+end

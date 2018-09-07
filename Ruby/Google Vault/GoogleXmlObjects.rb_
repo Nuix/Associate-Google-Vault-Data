@@ -1,0 +1,221 @@
+# Google Vault documentation https://support.google.com/vault/answer/6099459?hl=en
+
+# Represents a collection of data parsed from one or more XML files
+# exported along with a series of MBOX files
+class GoogleXmlData
+	attr_accessor :data_interchange_type
+	attr_accessor :description
+	attr_accessor :batches
+
+	def initialize
+		require "rexml/document"
+		@batches = []
+	end
+
+	# Tally up the total number of document nodes located
+	def total_documents
+		result = 0
+		batches.each do |batch|
+			result += batch.documents.size
+		end
+		return result
+	end
+
+	# Calculate the distinct "TagName" values parsed
+	def distinct_tag_names
+		names = {}
+		@batches.each do |batch|
+			batch.documents.each do |document|
+				document.tags.each do |tag|
+					names[tag.tag_name] = true
+				end
+			end
+		end
+		return names.keys
+	end
+
+	# Add the data from the specified XML file to this
+	def parse_xml_file(xml_file_path)
+		xml_file = File.new(xml_file_path)
+		xml_doc = REXML::Document.new(xml_file)
+
+		# Collect data from root node
+		xml_doc.elements.each("Root") do |root_node|
+			@data_interchange_type = root_node.attributes["DataInterchangeType"]
+			@description = root_node.attributes["Description"]
+		end
+
+		# Collect batch data
+		xml_doc.elements.each("Root/Batch") do |batch_node|
+			@batches << GoogleXmlBatch.new(batch_node)
+		end
+	end
+
+	# Iterate each tag present in the collected data, mostly for testing
+	def each_tag(&block)
+		@batches.each do |current_batch|
+			current_batch.documents.each do |current_document|
+				current_document.tags.each do |current_tag|
+					yield(current_batch,current_document,current_tag)
+				end
+			end
+		end
+	end
+
+	# Iterate each document present in the collected data
+	def each_document(&block)
+		@batches.each do |current_batch|
+			current_batch.documents.each do |current_document|
+				yield current_document
+			end
+		end
+	end
+
+	# Save tag data as CSV, mostly for testing
+	def save_csv(csv_file_path)
+		require 'csv'
+		CSV.open(csv_file_path,"w:utf-8") do |csv|
+			csv << [
+				"Batch Name",
+				"TagName",
+				"TagDataType",
+				"TagValue",
+			]
+
+			each_tag do |batch,document,tag|
+				csv << [
+					batch.name,
+					tag.tag_name,
+					tag.tag_data_type,
+					tag.tag_value,
+				]
+
+				if tag.is_labels_tag?
+					puts "Labels: #{tag.get_labels.join("; ")}"
+				end
+			end
+		end
+	end
+end
+
+# Represents a "Batch" node in XML and its contents
+class GoogleXmlBatch
+	attr_accessor :name
+	attr_accessor :documents
+
+	def initialize(batch_node)
+		@name = batch_node.attributes["name"]
+		@documents = []
+		# Collect document data
+		batch_node.elements.each("Documents/Document") do |document_node|
+			@documents << GoogleXmlDocument.new(document_node)
+		end
+	end
+end
+
+# Represents a "Document" node in XML and its contents
+class GoogleXmlDocument
+	attr_accessor :doc_id
+	attr_accessor :tags
+	attr_accessor :external_files
+
+	def initialize(document_node)
+		@doc_id = document_node.attributes["DocId"]
+		@tags = []
+		@external_files = []
+		# Collect tag data
+		document_node.elements.each("Tags/Tag") do |tag_node|
+			@tags << GoogleXmlTag.new(tag_node)
+		end
+		# Collect external file node entries
+		document_node.elements.each("Files/File/ExternalFile") do |external_file_node|
+			@external_files << GoogleXmlExternalFile.new(external_file_node)
+		end
+	end
+
+	def find_tag(name)
+		@tags.select{|t|t.tag_name == name}.first
+	end
+
+	def labels
+		return find_tag("Labels").get_labels
+	end
+
+	def external_file_name
+		return @external_files.first.file_name
+	end
+
+	def annotate_item(item,date_time_format)
+		# Record XML "Tag" data as custom metadata
+		item_custom_metadata = item.getCustomMetadata
+		tags.each do |tag|
+			case tag.tag_data_type
+			when "Boolean"
+				# Store as proper boolean
+				item_custom_metadata[tag.tag_name] = tag.tag_value == "True"
+			when "DateTime"
+				# Store as proper Joda DateTime
+				item_custom_metadata[tag.tag_name] = date_time_format.parseDateTime(tag.tag_value)
+			else
+				# Store others as text
+				item_custom_metadata[tag.tag_name] = tag.tag_value
+			end
+		end
+	end
+
+	def annotate_items(items,date_time_format)
+		annotater = $utilities.getBulkAnnotater
+		tags.each do |tag|
+			value = ""
+			case tag.tag_data_type
+			when "Boolean"
+				# Store as proper boolean
+				value = tag.tag_value == "True"
+			when "DateTime"
+				# Store as proper Joda DateTime
+				value = date_time_format.parseDateTime(tag.tag_value)
+			else
+				# Store others as text
+				value = tag.tag_value
+			end
+			annotater.putCustomMetadata(tag.tag_name,value,items,nil)
+		end
+	end
+end
+
+# Represents a "Tag" node in XML
+class GoogleXmlTag
+	attr_accessor :tag_name
+	attr_accessor :tag_data_type
+	attr_accessor :tag_value
+
+	def initialize(tag_node)
+		@tag_name = tag_node.attributes["TagName"]
+		@tag_data_type = tag_node.attributes["TagDataType"]
+		@tag_value = tag_node.attributes["TagValue"]
+	end
+
+	# Convenience method to locate "Tag" nodes which are
+	# the "Labels" "Tag"
+	def is_labels_tag?
+		return @tag_name == "Labels"
+	end
+
+	# Cleanup lables by splitting on delimiter and stripping off carrot prefix
+	def get_labels
+		return @tag_value.split(",").map{|l|l.gsub(/\^/,"")}
+	end
+end
+
+# Represents an "ExternalFile" node in XML
+class GoogleXmlExternalFile
+	attr_accessor :file_name
+	attr_accessor :file_size
+	attr_accessor :hash
+
+	def initialize(external_file_node)
+		@file_name = external_file_node.attributes["FileName"]
+		@file_size = external_file_node.attributes["FileSize"].to_i
+		@hash = external_file_node.attributes["Hash"]
+	end
+end

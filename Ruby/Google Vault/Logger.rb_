@@ -1,0 +1,18 @@
+#======================#
+# Simple logging class #
+#======================#
+class Logger
+	class << self
+		attr_accessor :log_file
+		def log(obj)
+			message = "#{Time.now.strftime("%Y%m%d %H:%M:%S")}: #{obj}"
+			puts message
+			File.open(@log_file,"a"){|f|f.puts message}
+		end
+
+		def log_file_only(obj)
+			message = "#{Time.now.strftime("%Y%m%d %H:%M:%S")}: #{obj}"
+			File.open(@log_file,"a"){|f|f.puts message}
+		end
+	end
+end
