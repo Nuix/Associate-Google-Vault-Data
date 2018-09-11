@@ -2,7 +2,7 @@
 Associate Google Vault Data
 ===========================
 
-![Last tested in Nuix 7.4](https://img.shields.io/badge/Nuix-7.4-green.svg)
+![Last tested in Nuix 7.6](https://img.shields.io/badge/Nuix-7.4-green.svg)
 
 View the GitHub project [here](https://github.com/Nuix/Associate-Google-Vault-Data) or download the latest release [here](https://github.com/Nuix/Associate-Google-Vault-Data/releases).
 
@@ -27,8 +27,8 @@ Begin by downloading the latest release of this code.  Extract the contents of t
 1. User provides path to one or more XML files
 1. User provides settings for tagging etc
 1. Each XML file is parsed into a series of objects
-1. For each MBOX item in case using `mime-type:"application/mbox"`
-	1. Binary for item is loaded through API.  **Note**: Nuix must be able to reach the binary, either as stored binary or from the source data.
+1. For each MBOX item in case found using `mime-type:"application/mbox"`
+	1. Binary for item is loaded through API.  **Note**: Nuix must be able to reach the binary, either as stored binary or from the source data.  The script must be able to parse the binary directly to build the cross reference.
 	1. MBOX is split on `From_` lines (each email)
 	1. Each split section is parsed for XML ID in `From_` line and `Message-ID` header.  This provides a cross reference between the Nuix metadata field `Message-ID` and the XML `ExternalFile` node's `FileName` attribute.
 1. All emails in current case are located using `kind:email`
@@ -53,7 +53,7 @@ Begin by downloading the latest release of this code.  Extract the contents of t
 ## Workflow
 
 1. User provides path to one or more XML files
-1. User provides settings for tagging etc
+1. User provides settings for tagging, etc.
 1. Each XML file is parsed into a series of objects
 1. For each `Document` node in the XML the associated `ExternalFile` node's `FileName` attribute is searched for against the `name` field.
 	1. For each hit item found
