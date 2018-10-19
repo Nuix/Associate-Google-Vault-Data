@@ -30,9 +30,19 @@ load File.join(script_directory,"Logger.rb_")
 # We will need this to parse the DateTime values from the XML
 java_import "org.joda.time.format.DateTimeFormat"
 
+# If user has selected some MBOX files, lets update only the emails of those MBOX items.  We will only
+# generate the XREF data for those select MBOX, and only then if we're in a version of Nuix pre 7.4
+selected_mbox_items = []
+if $current_selected_items.nil? == false && $current_selected_items.size > 0
+	selected_mbox_items = $current_selected_items.select{|i| i.getType.getName == "application/mbox"}
+end
+
 # Build settings dialog
 dialog = TabbedCustomDialog.new("Associate Google Email Data")
 main_tab = dialog.addTab("main_tab","Main")
+if selected_mbox_items.size > 0
+	main_tab.appendHeader("Processing only emails of #{selected_mbox_items.size} selected MBOX items")
+end
 main_tab.appendCheckBox("apply_label_tags","Apply Tags for GMail Labels",true)
 main_tab.appendTextField("tag_prefix","Gmail Label Tag Prefix","GMailLabels")
 main_tab.enabledOnlyWhenChecked("tag_prefix","apply_label_tags")
@@ -150,48 +160,80 @@ if dialog.getDialogResult == true
 			external_filename_lookup[document.external_file_name] = document
 		end
 
-		# Locate MBOX items so we may parse out XREF data to connect them with XML entries
-		# We are looking specifically for the "From_" MBOX header which basically acts as an
-		# email boundary.  For each email we also located the associated "Message-ID".
-		# Google value metadata XML contains data in the "From_" header so we can use as XREF
-		# from XML to "Message-ID" Nuix captured as metadata for emails
-		pd.setMainStatusAndLogIt("Extracting Xref from MBOX Files...")
-		xref = GoogleMboxXref.new
-		mbox_items = $current_case.search("mime-type:\"application/mbox\"")
-		if mbox_items.size < 1
+		# Nuix 7.4 captures "From" property, eliminating the need to parse the MBOX anymore, so
+		# we check if this is Nuix 7.4 or above and skip all the MBOX xref stuff if we can
+		nuix_7dot4_or_above = NuixConnection.getCurrentNuixVersion.isAtLeast("7.4")
+
+		mbox_items = []
+		if nuix_7dot4_or_above
+			pd.setMainStatusAndLogIt("Nuix 7.4 or higher detected, skipping step building Xref from MBOX Files...")
+		else
+			# Locate MBOX items so we may parse out XREF data to connect them with XML entries
+			# We are looking specifically for the "From_" MBOX header which basically acts as an
+			# email boundary.  For each email we also located the associated "Message-ID".
+			# Google value metadata XML contains data in the "From_" header so we can use as XREF
+			# from XML to "Message-ID" Nuix captured as metadata for emails
+			pd.setMainStatusAndLogIt("Extracting Xref from MBOX Files...")
+			xref = GoogleMboxXref.new
+			mbox_items = []
+			if selected_mbox_items.size > 0
+				mbox_items = selected_mbox_items
+			else
+				mbox_items = $current_case.search("mime-type:\"application/mbox\"")
+			end
+		end
+
+		if mbox_items.size < 1 && !nuix_7dot4_or_above
 			pd.logMessage("Case contains no MBOX (application/mbox) items")
 			pd.setMainStatusAndLogIt("Completed #{Time.at(Time.now - start_time).gmtime.strftime("%H:%M:%S")}")
 			pd.setMainProgress(1,1)
 			warning_count += 1
 			pd.setSubStatus("Errors: #{error_count}, Warnings: #{warning_count}, Matches: #{match_count}, Skipped Attached Emails: #{skipped_attached_email_count}")
 		else
-			pd.setMainProgress(0,mbox_items.size)
-			mbox_items.each_with_index do |mbox_item,mbox_index|
-				pd.setMainProgress(mbox_index+1)
-				begin
-					xref.build_xref(mbox_item)
-				rescue Exception => exc
-					pd.logMessage("!!! Error while parsing MBOX '#{mbox_item.getName}':")
-					pd.logMessage(exc.message)
-					pd.logMessage(exc.backtrace.join("\n"))
-					error_count += 1
-					pd.setSubStatus("Errors: #{error_count}, Warnings: #{warning_count}, Matches: #{match_count}, Skipped Attached Emails: #{skipped_attached_email_count}")
+			# Only need to do this for data processed in Nuix before 7.4
+			if !nuix_7dot4_or_above
+				pd.setMainProgress(0,mbox_items.size)
+				mbox_items.each_with_index do |mbox_item,mbox_index|
+					pd.setMainProgress(mbox_index+1)
+					begin
+						pd.logMessage("  Processing MBOX: #{mbox_item.getName}")
+						xref.build_xref(mbox_item)
+					rescue Exception => exc
+						pd.logMessage("!!! Error while parsing MBOX '#{mbox_item.getName}':")
+						pd.logMessage(exc.message)
+						pd.logMessage(exc.backtrace.join("\n"))
+						error_count += 1
+						pd.setSubStatus("Errors: #{error_count}, Warnings: #{warning_count}, Matches: #{match_count}, Skipped Attached Emails: #{skipped_attached_email_count}")
+					end
 				end
+				pd.logMessage("MBox Xref Records Found: #{xref.size}")
+
+				# Save the From_ to Message-ID xref data to CSV
+				pd.logMessage("Saving Xref CSV: #{xref_csv_path}")
+				xref.save_csv(xref_csv_path)
 			end
-			pd.logMessage("MBox Xref Records Found: #{xref.size}")
 
-			# Save the From_ to Message-ID xref data to CSV
-			pd.logMessage("Saving Xref CSV: #{xref_csv_path}")
-			xref.save_csv(xref_csv_path)
+			# Regex we will use to get from identifier we need from property "MBOX From Line" if we are in Nuix 7.4 or higher
+			from_regex = /^From ([0-9]+-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.mbox).*$/
 
-			pd.setMainStatusAndLogIt("Finding Email Items...")
 
 			# We are going to group matches items by the labels associated to those
 			# items in the XML file.  We group them up so we can tag in batches
 			grouped_by_label = Hash.new{|h,k|h[k]=[]}
 
-			# Find all email items in the case
-			email_items = $current_case.search("kind:email")
+			# Get the emails we will be updating.  If spefic MBOX items were selected at the beginning only process their emails
+			# otherwise we just going to try and process all emails in the case
+			email_items = []
+			if selected_mbox_items.size > 0
+				path_guids = selected_mbox_items.map{|i|i.getGuid}
+				selected_mbox_email_query = "path-guid:(#{path_guids.join(" OR ")}) AND kind:email"
+				pd.logMessage("Query: #{selected_mbox_email_query}")
+				pd.setMainStatusAndLogIt("Finding Email Items for #{selected_mbox_items.size} selected MBOX items...")
+				email_items = $current_case.search(selected_mbox_email_query)
+			else
+				pd.setMainStatusAndLogIt("Finding Email Items...")
+				email_items = $current_case.search("kind:email")
+			end
 			pd.logMessage("Email Item Count: #{email_items.size}")
 			pd.setMainProgress(0,email_items.size)
 
@@ -225,8 +267,14 @@ if dialog.getDialogResult == true
 						warning_count += 1
 						pd.setSubStatus("Errors: #{error_count}, Warnings: #{warning_count}, Matches: #{match_count}, Skipped Attached Emails: #{skipped_attached_email_count}")
 					else
-						# We do have a "Message-ID" so lets find the matching "From_" in our XREF
-						from_id = xref.from_id_for_message_id(message_id)
+						from_id = ""
+						# Only use XREF in versions < Nuix 7.4, data processed in a version after that should have this as a property named "MBOX From Line"
+						if nuix_7dot4_or_above
+							# From line captured by Nuix has a bit more than we need so we get just the part relevant from it
+							from_id = item_properties["MBOX From Line"].gsub(from_regex,"\\1").strip
+						else
+							from_id = xref.from_id_for_message_id(message_id)
+						end
 						status_entry[:from_line] = from_id || "Unable to resolve From line"
 						if from_id.nil?
 							# Looks like XREF did not have an entry for this "Message-ID"

@@ -1,4 +1,5 @@
 
+
 Associate Google Vault Data
 ===========================
 
@@ -32,14 +33,41 @@ Once you have a copy of Nx.jar, make sure to include it in the same directory as
 # Associate Google Email Data
 ## Workflow
 
+There are several different workflows that may be executed depending on:
+- Whether MBOX items were selected before running the script
+- Whether you are running Nuix 7.4.0 or higher
+
+If MBOX items are selected before running the script, only data related to the selected MBOX files will be processed.  If you are running the script in a version of Nuix before 7.4 this means only the selected MBOX files will be parsed for XREF and only the emails from those MBOX will be processed.  If you are running the script in Nuix 7.4 or later, MBOX parsing will be skipped regardless (see below), but only emails from the selected MBOX will be processed.
+
+### Nuix 7.4.0 or Higher
+
+In Nuix 7.4 Nuix captures the "From" line as a property of each email item extracted from the MBOX.  This means that for an MBOX which was processed by Nuix 7.4.0 or higher, the script no longer needs to parse the MBOX file, the XREF identifier needed is right on the item.  If the script detects it is being ran in Nuix 7.4.0 or higher, it will skip parsing the MBOX files altogether and instead get the needed XREF identifier right from the "MBOX From Line" property of the emails being processed.
+
+**IMPORTANT:** While the script uses the current version of Nuix to determine whether to parse the MBOX files, the appropriate identifier *will only be present if the data was processed in Nuix 7.4.0 or later*.  For example, if you process MBOX files in Nuix 7.2, then migrate the case to 7.4 and run this script in Nuix 7.4 you will get no results because the script will use the new logic while the required identifiers will not be present because the data was processed in Nuix 7.2.
+
 1. User provides path to one or more XML files
 1. User provides settings for tagging etc
 1. Each XML file is parsed into a series of objects
-1. For each MBOX item in case found using `mime-type:"application/mbox"`
+1. All emails in the current case are located using `kind:email`, if MBOX items were selected, only emails belonging to those MBOX are searched for using `path-guid(A OR B or etc) AND kind:email`
+1. For each email item
+	1. Cross reference data is used to associate a given email item to XML `Document` record.  Nuix property `MBOX From Line` is used to associate item to XML record.
+	1. If no match can be found, record is skipped and this is recorded to output
+	1. If a match is found
+		1. Each `Tag` node in the associated `Document` node is applied as custom metadata.
+		1. the XML `ExternalFile` node's `FileName` attribute used to associate this item is recorded as the custom metadata field `XmlExternalFileName`.
+		1. Item is classified by associated `Tag` node with name `Labels` label values for tagging later if user specified to apply tags.
+1. For each record which was a match, tags are applied based on associated XML `Labels` data, if user specified to apply tags.
+
+### Versions Before Nuix 7.4.0
+
+1. User provides path to one or more XML files
+1. User provides settings for tagging etc
+1. Each XML file is parsed into a series of objects
+1. For each MBOX item in case found using `mime-type:"application/mbox"`, if MBOX items were selected when running the script only those MBOX files are used 
 	1. Binary for item is loaded through API.  **Note**: Nuix must be able to reach the binary, either as stored binary or from the source data.  The script must be able to parse the binary directly to build the cross reference.
 	1. MBOX is split on `From_` lines (each email)
 	1. Each split section is parsed for XML ID in `From_` line and `Message-ID` header.  This provides a cross reference between the Nuix metadata field `Message-ID` and the XML `ExternalFile` node's `FileName` attribute.
-1. All emails in current case are located using `kind:email`
+1. All emails in current case are located using `kind:email`, if MBOX items were selected, only emails belonging to those MBOX are searched for using `path-guid(A OR B or etc) AND kind:email`
 1. For each email item
 	1. Cross reference data is used to associate a given email item to XML `Document` record.
 	1. If no match can be found, record is skipped and this is recorded to output
