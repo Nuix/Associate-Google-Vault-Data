@@ -50,6 +50,7 @@ main_tab.appendDirectoryChooser("log_directory","Log Directory")
 main_tab.appendHeader("XML Files")
 main_tab.appendPathList("xml_file_paths")
 main_tab.getControl("xml_file_paths").setDirectoriesButtonVisible(false)
+main_tab.appendCheckBox("data_is_pre_74","MBOX was processed pre Nuix 7.4",false)
 
 # Define some settings validations
 dialog.validateBeforeClosing do |values|
@@ -100,6 +101,7 @@ if dialog.getDialogResult == true
 	tag_prefix = values["tag_prefix"]
 	xml_file_paths = values["xml_file_paths"]
 	apply_label_tags = values["apply_label_tags"]
+	data_is_pre_74 = values["data_is_pre_74"]
 
 	# Track errors, warnings, successes and start time
 	error_count = 0
@@ -163,6 +165,19 @@ if dialog.getDialogResult == true
 		# Nuix 7.4 captures "From" property, eliminating the need to parse the MBOX anymore, so
 		# we check if this is Nuix 7.4 or above and skip all the MBOX xref stuff if we can
 		nuix_7dot4_or_above = NuixConnection.getCurrentNuixVersion.isAtLeast("7.4")
+
+		if nuix_7dot4_or_above
+			pd.logMessage("Detected Nuix 7.4 or higher")
+		end
+
+		# Added a checkbox allowing the user to force the script to use the old logic for
+		# instances where they may have processed the data in a version of Nuix prior to 7.4
+		# but then run this script against that data in 7.4 or higher.  When this is the case
+		# were going to set nuix_7dot4_or_above to false so the old logic is used.
+		if data_is_pre_74
+			nuix_7dot4_or_above = false
+			pd.logMessage("Forcing script to use old technique for data processed pre Nuix 7.4")
+		end
 
 		mbox_items = []
 		if nuix_7dot4_or_above
@@ -270,8 +285,26 @@ if dialog.getDialogResult == true
 						from_id = ""
 						# Only use XREF in versions < Nuix 7.4, data processed in a version after that should have this as a property named "MBOX From Line"
 						if nuix_7dot4_or_above
-							# From line captured by Nuix has a bit more than we need so we get just the part relevant from it
-							from_id = item_properties["MBOX From Line"].gsub(from_regex,"\\1").strip
+							mbox_from_line = item_properties["MBOX From Line"]
+							if mbox_from_line.nil? || mbox_from_line.strip.empty?
+								status_entry[:issue_message] = "!!! WARNING: Skipping item without 'MBOX From Line' property: #{item.getGuid}, data may have been processed in version before 7.4"
+								pd.logMessage(status_entry[:issue_message])
+								warning_count += 1
+								# Record per item status results for this item
+								csv << [
+									item.getGuid,
+									item.getLocalisedName,
+									status_entry[:message_id],
+									status_entry[:from_line],
+									status_entry[:item_success],
+									status_entry[:issue_message],
+								]
+								# Get iterator to move on to next item
+								next
+							else
+								# From line captured by Nuix has a bit more than we need so we get just the part relevant from it
+								from_id = mbox_from_line.gsub(from_regex,"\\1").strip
+							end
 						else
 							from_id = xref.from_id_for_message_id(message_id)
 						end
