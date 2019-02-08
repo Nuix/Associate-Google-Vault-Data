@@ -28,6 +28,25 @@ load File.join(script_directory,"Logger.rb_")
 # We will need this to parse the DateTime values from the XML
 java_import "org.joda.time.format.DateTimeFormat"
 
+# Escapes certain characters in a value that would potentially cause a search to be invalid
+# it is important to note that just because a character is escaped does not mean Nuix will search for it.
+# For example if I am search the name field for:
+# name:"Its \"that\" day again"
+# Escaping the quotes may help prevent this search from having an error but does not necessarily mean that
+# the search now matches on quotes.
+def escape_for_search(value)
+	return value.encode("utf-8")
+		.gsub("\\","\\\\\\") #Escape \
+		.gsub("?","\\?") #Escape ?
+		.gsub("*","\\*") #Escape *
+		.gsub("\"","\\\"") #Escape "
+		.gsub("\u201C".encode("utf-8"),"\\\u201C".encode("utf-8")) #Escape left smart quote
+		.gsub("\u201D".encode("utf-8"),"\\\u201D".encode("utf-8")) #Escape right smart quote
+		.gsub("'","\\\\'") #Escape '
+		.gsub("{","\\{")
+		.gsub("}","\\}")
+end
+
 # Build settings dialog
 dialog = TabbedCustomDialog.new("Associate Google Drive Data")
 main_tab = dialog.addTab("main_tab","Main")
@@ -120,7 +139,8 @@ if dialog.getDialogResult == true
 
 		data.each_document do |document|
 			external_file_name = document.external_file_name
-			items = $current_case.searchUnsorted("name:\"#{external_file_name}\"")
+			escaped_external_file_name = escape_for_search(external_file_name)
+			items = $current_case.searchUnsorted("name:\"#{escaped_external_file_name}\"")
 			if items.size < 1
 				pd.logMessage("Unable to locate item with name: #{external_file_name}")
 				warning_count += 1
