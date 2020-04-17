@@ -103,6 +103,19 @@ In Nuix 7.4 Nuix captures the "From" line as a property of each email item extra
 - **Google Drive Label Tag Prefix**: Prefix to use for GDrive label tag names.
 - **XML Files**: Used to provide one or more XML file paths to load Gmail metadata from.
 
+
+## Headless Operation
+
+The project contains 4 scripts that can be used to associate the metadata present in the XML files exported from Google Vault to emails and documents without requiring user interaction.
+
+The scripts `AssociateGoogleDriveDataHeadless.rb_` and `AssociateGoogleEmailDataHeadless.rb_` search for the Google Vault XML files inside the Nuix case
+and export them to `C:\Temp\Google_DATE`. Then the scripts run the association logic with the exported files.
+
+The scripts `AssociateGoogleDriveDataRampiva.rb_` and `AssociateGoogleEmailDataRampiva.rb_` search for the Google Vault XML files inside the Nuix case
+within the last batch of data loaded and export them to `C:\Temp\Google_DATE`. For the scripts to work, the variable `last_batch_load_guid` must be set with the GUID of the last batch. 
+Then the scripts also run the association logic with the exported files, restricting the search of emails to the last batch of data loaded.
+
+
 # License
 
 ```

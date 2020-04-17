@@ -1,0 +1,49 @@
+class ProgressLogger
+	def initialize(log_file)
+
+		script_directory = File.dirname(__FILE__)
+
+		# Load logging class
+		load File.join(script_directory,"Logger.rb_")
+		Logger.log_file = log_file
+		@maxProgress=1
+	end
+
+	def setTitle(title)
+		Logger.log("=== "+title.to_s)
+	end
+
+	def setSubStatus(subStatus)
+		## Do not log substatus to avoid poluting the logs
+		#Logger.log("= "+subStatus.to_s)
+	end
+
+	def setMainStatusAndLogIt(status)
+		Logger.log("== "+status.to_s)
+	end
+
+	def logMessage(message)
+		Logger.log(message.to_s)
+	end
+
+	def setMainProgress(value, max=nil)
+		if max!=nil
+			@maxProgress = max
+		end
+		## Do not log progress avoid poluting the logs
+		# Logger.log("Progress: "+value.to_s+"/"+@maxProgress.to_s)
+	end
+
+	def setSubStatusAndLogIt(subStatus)
+		Logger.log("= "+subStatus.to_s)
+	end
+
+	def onMessageLogged()
+  		# Do nothing
+	end
+
+
+end
+
+
+

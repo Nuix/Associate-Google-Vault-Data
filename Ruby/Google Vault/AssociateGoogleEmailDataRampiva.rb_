@@ -1,0 +1,38 @@
+baseTempFolder="C:\\Temp\\Google_"+Time.now.strftime("%Y%m%d_%H-%M-%S")
+
+# Set last_batch_load_guid to the GUID of the last batch of data
+tempFolder=baseTempFolder+"_"+last_batch_load_guid
+
+Dir.mkdir(tempFolder)
+
+xmlFiles=[]
+
+#Search for all XML files which are not in a zip (i.e. not inside the data itself) and which have <Tag TagName='#From' TagDataType='Text'
+xmlItems = currentCase.searchUnsorted("batch-load-guid:"+last_batch_load_guid+" mime-type:application/xml name:metadata.xml \"From Text\" NOT path-mime-type:application/x-zip-compressed")
+for xmlItem in xmlItems
+	puts "Detected XML "+xmlItem.to_s
+	xmlItem.getBinary().getBinaryData().copyTo(tempFolder+"\\"+xmlItem.getName())
+	xmlFiles.push(tempFolder+"\\"+xmlItem.getName())
+end
+
+values = Hash.new
+values["tag_prefix"]="GMailLabels"
+values["xml_file_paths"]=xmlFiles
+values["apply_label_tags"]=true
+values["data_is_pre_74"]=false
+values["log_directory"]=tempFolder
+
+
+script_directory = File.dirname(__FILE__)
+
+#Load Controller
+load File.join(script_directory,"AssociateGoogleEmailDataController.rb_")
+
+#Load ProgressLogger
+load File.join(script_directory,"ProgressLogger.rb_")
+
+selected_mbox_items = []
+nuix_7dot4_or_above=true
+progressLogger = ProgressLogger.new(values["log_directory"]+"\\init.log")
+controller = AssociateGoogleEmailDataController.new
+controller.handleData(progressLogger, values, selected_mbox_items, "batch-load-guid:"+last_batch_load_guid, nuix_7dot4_or_above)
