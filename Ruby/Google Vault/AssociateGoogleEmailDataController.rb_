@@ -111,7 +111,7 @@ class AssociateGoogleEmailDataController
 			if selected_mbox_items.size > 0
 				mbox_items = selected_mbox_items
 			else
-				if scope_filter.size > 0
+				if !scope_filter.nil? && scope_filter.size > 0
 					mbox_items = $current_case.search("(mime-type:\"application/mbox\") AND ("+scope_filter+")")
 				else
 					mbox_items = $current_case.search("mime-type:\"application/mbox\"")
@@ -167,7 +167,7 @@ class AssociateGoogleEmailDataController
 				pd.setMainStatusAndLogIt("Finding Email Items for #{selected_mbox_items.size} selected MBOX items...")
 				email_items = $current_case.search(selected_mbox_email_query)
 			else
-				if scope_filter.size > 0
+				if !scope_filter.nil? && scope_filter.size > 0
 					pd.setMainStatusAndLogIt("Finding Email Items in scope "+scope_filter+" ...")
 					email_items = $current_case.search("(kind:email) AND ("+scope_filter+")")
 				else
