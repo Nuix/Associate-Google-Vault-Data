@@ -104,7 +104,7 @@ In Nuix 7.4 Nuix captures the "From" line as a property of each email item extra
 - **XML Files**: Used to provide one or more XML file paths to load Gmail metadata from.
 
 
-## Headless Operation
+# Headless Operation
 
 The project contains 4 scripts that can be used to associate the metadata present in the XML files exported from Google Vault to emails and documents without requiring user interaction.
 
