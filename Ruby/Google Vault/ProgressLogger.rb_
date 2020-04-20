@@ -42,8 +42,4 @@ class ProgressLogger
   		# Do nothing
 	end
 
-
 end
-
-
-
