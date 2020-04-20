@@ -5,7 +5,8 @@ Dir.mkdir(tempFolder)
 xmlFiles=[]
 
 #Search for all XML files which are not in a zip (i.e. not inside the data itself) and which have <Tag TagName='#Author' TagDataType='Text'
-xmlItems = currentCase.searchUnsorted("mime-type:application/xml name:metadata.xml \"Author Text\" NOT for xmlItem in xmlItems
+xmlItems = currentCase.searchUnsorted("mime-type:application/xml name:metadata.xml \"Author Text\" NOT path-mime-type:application/x-zip-compressed")
+for xmlItem in xmlItems
 	puts "Exporting XML "+xmlItem.to_s
 	xmlItem.getBinary().getBinaryData().copyTo(tempFolder+"\\"+xmlItem.getName())
 	xmlFiles.push(tempFolder+"\\"+xmlItem.getName())
