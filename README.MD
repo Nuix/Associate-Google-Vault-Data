@@ -3,7 +3,7 @@
 Associate Google Vault Data
 ===========================
 
-![This script was last tested in Nuix 7.6](https://img.shields.io/badge/Script%20Tested%20in%20Nuix-7.6-green.svg)
+![This script was last tested in Nuix 8.4](https://img.shields.io/badge/Script%20Tested%20in%20Nuix-8.4-green.svg)
 
 View the GitHub project [here](https://github.com/Nuix/Associate-Google-Vault-Data) or download the latest release [here](https://github.com/Nuix/Associate-Google-Vault-Data/releases).
 
@@ -119,7 +119,7 @@ Then the scripts also run the association logic with the exported files, restric
 # License
 
 ```
-Copyright 2018 Nuix
+Copyright 2020 Nuix
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
