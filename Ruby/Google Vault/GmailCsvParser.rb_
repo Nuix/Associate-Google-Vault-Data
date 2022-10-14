@@ -1,0 +1,168 @@
+require 'csv'
+
+class GmailCsvParser
+	# Will be populated first time it is needed via a call
+	# to the method prepare_annotation_actions
+	@@annotation_actions = nil
+
+	attr_accessor :csv_file
+	attr_accessor :message_logged_callback
+
+	attr_accessor :label_tags
+	attr_accessor :label_tag_prefix
+	attr_accessor :label_custom_metadata
+	attr_accessor :label_custom_field
+
+	def initialize(csv_file)
+		if csv_file.nil? || csv_file.strip.empty? || !java.io.File.new(csv_file).exists
+			raise "Invalid csv_file: '#{csv_file}'"
+		else
+			@csv_file = csv_file
+		end
+
+		@label_tags = true
+		@label_tag_prefix = "GmailLabels|"
+		@label_custom_metadata = true
+		@label_custom_field = "GmailLabels"
+	end
+
+	def on_message_logged(&block)
+		@message_logged_callback = block
+	end
+
+	def log_message(message)
+		if !@message_logged_callback.nil?
+			@message_logged_callback.call(message)
+		else
+			puts message
+		end
+	end
+
+	def prepare_annotation_actions
+
+		return if !@@annotation_actions.nil?
+
+		@@annotation_actions = []
+
+		# ==================================
+		# Fields which are just copying text
+		# ==================================
+		
+		# CSV Header => Custom Field Name
+		simple_text_fields = {
+			"GmailMessageId" => "Gmail_MessageId",
+			"Account" => "Gmail_Account",
+			"From" => "Gmail_From",
+			"Subject" => "Gmail_Subject",
+			"To" => "Gmail_To",
+			"CC" => "Gmail_CC",
+			"BCC" => "Gmail_BCC",
+			"SubjectAtStart" => "Gmail_SubjectAtStart",
+			"SubjectAtEnd" => "Gmail_SubjectAtEnd",
+		}
+
+		simple_text_fields.each do |csv_header,custom_field|
+			@@annotation_actions << Proc.new{ |record,items|
+				csv_value = record[csv_header]
+				if !csv_value.nil? && !csv_value.strip.empty?
+					log_message("Recording '#{csv_header}' as '#{custom_field}'")
+					$utilities.getBulkAnnotater.putCustomMetadata(custom_field,csv_value,items,"text","user",nil,nil)
+				end
+			}
+		end
+
+		# =========================================
+		# Fields which may have a date to be parsed
+		# =========================================
+		
+		# CSV Header => Custom Field Name
+		simple_date_fields = {
+			"DateSent" => "Gmail_DateSent",
+			"DateReceived" => "Gmail_DateReceived",
+			"DateFirstMessageSent" => "Gmail_DateFirstMessageSent",
+			"DateLastMessageSent" => "Gmail_DateLastMessageSent",
+			"DateFirstMessageReceived" => "Gmail_DateFirstMessageReceived",
+			"DateLastMessageReceived" => "Gmail_DateLastMessageReceived",
+		}
+
+		simple_date_fields.each do |csv_header,custom_field|
+			@@annotation_actions << Proc.new{ |record,items|
+				csv_value = record[csv_header]
+				if !csv_value.nil? && !csv_value.strip.empty?
+					log_message("Recording '#{csv_header}' as '#{custom_field}'")
+					$utilities.getBulkAnnotater.putCustomMetadata(custom_field,csv_value,items,"date-time","user",nil,nil)
+				end
+			}
+		end
+
+		# ================================
+		# Fields which may have an integer
+		# ================================
+		
+		# CSV Header => Custom Field Name
+		simple_integer_fields = {
+			"ThreadedMessageCount" => "Gmail_ThreadedMessageCount",
+		}
+
+		simple_integer_fields.each do |csv_header,custom_field|
+			@@annotation_actions << Proc.new{ |record,items|
+				csv_value = record[csv_header]
+				if !csv_value.nil? && !csv_value.strip.empty?
+					log_message("Recording '#{csv_header}' as '#{custom_field}'")
+					$utilities.getBulkAnnotater.putCustomMetadata(custom_field,csv_value,items,"integer","user",nil,nil)
+				end
+			}
+		end
+
+		# =================================
+		# Fields which have non-basic logic
+		# =================================
+
+		if @label_tags == true || @label_custom_metadata == true
+			@@annotation_actions << Proc.new{ |record,items|
+				raw_labels = record["Labels"]
+				if !raw_labels.nil? && !raw_labels.strip.empty?
+					labels = raw_labels.split(",")
+					labels = labels.map{|label| label.strip.gsub(/^\^/,"")}
+
+					if @label_tags == true
+						tags = labels.map{|label| "#{@label_tag_prefix}#{label}"}
+						log_message("Recording labels as tags")
+						tags.each do |tag|
+							$utilities.getBulkAnnotater.addTag(tag,items)
+						end
+					end
+
+					if @label_custom_metadata == true
+						concat = labels.join(";")
+						log_message("Recording labels as '#{@label_custom_field}'")
+						$utilities.getBulkAnnotater.putCustomMetadata(@label_custom_field,concat,items,"text","user",nil,nil)
+					end
+				end
+			}
+		end
+	end
+
+	def process_and_annotate(nuix_case)
+		prepare_annotation_actions()
+		guids = {}
+		
+		CSV.foreach(@csv_file,{:headers => true}) do |record|
+			# Resolve items in case
+			rfc822messageid = record["Rfc822MessageId"]
+			query = "properties:\"Message-ID #{rfc822messageid}\""
+			items = nuix_case.searchUnsorted(query)
+			items.each{|item|guids[item.getGuid] = true}
+
+			log_message("Found #{items.size} items for Message-ID: #{rfc822messageid}")
+
+			if items.size > 0
+				@@annotation_actions.each_with_index do |action,action_index|
+					action.call(record,items)
+				end
+			end
+		end
+
+		return guids.keys
+	end
+end
