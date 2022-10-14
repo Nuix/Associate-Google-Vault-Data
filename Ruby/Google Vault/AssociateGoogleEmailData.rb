@@ -1,4 +1,4 @@
-# Menu Title: Associate Google Email Data
+# Menu Title: Associate Google Email Data (XML)
 # Needs Case: true
 # Needs Selected Items: false
 
@@ -35,7 +35,6 @@ end
 main_tab.appendCheckBox("apply_label_tags","Apply Tags for GMail Labels",true)
 main_tab.appendTextField("tag_prefix","Gmail Label Tag Prefix","GMailLabels")
 main_tab.enabledOnlyWhenChecked("tag_prefix","apply_label_tags")
-main_tab.appendDirectoryChooser("log_directory","Log Directory")
 main_tab.appendHeader("XML Files")
 main_tab.appendPathList("xml_file_paths")
 main_tab.getControl("xml_file_paths").setDirectoriesButtonVisible(false)
@@ -58,12 +57,6 @@ dialog.validateBeforeClosing do |values|
 				next false
 			end
 		end
-	end
-
-	# Validate log directory was provided
-	if values["log_directory"].strip.empty?
-		CommonDialogs.showWarning("Please provide a non-empty value for 'Log Directory'.")
-		next false
 	end
 
 	# Get user confirmation about closing all workbench tabs
