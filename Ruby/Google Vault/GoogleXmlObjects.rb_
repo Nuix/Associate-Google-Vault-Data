@@ -138,7 +138,14 @@ class GoogleXmlDocument
 	end
 
 	def labels
-		return find_tag("Labels").get_labels
+		# In some instances XML file may no longer have this so we
+		# need to handle situation where it is not present.
+		found_tag = find_tag("Labels")
+		if found_tag.nil?
+			return ["NO_LABELS"]
+		else
+			return found_tag.get_labels
+		end
 	end
 
 	def external_file_name
