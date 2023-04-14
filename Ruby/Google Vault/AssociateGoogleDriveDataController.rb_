@@ -87,6 +87,8 @@ class AssociateGoogleDriveDataController
 				pd.setSubStatus("Errors: #{error_count}, Warnings: #{warning_count}, Matches: #{match_count}")
 			else
 				document.annotate_items(items,date_time_format)
+				# Record DocID
+				document.record_docid(items)
 				match_count += 1
 				pd.setSubStatus("Errors: #{error_count}, Warnings: #{warning_count}, Matches: #{match_count}")
 				# Group item by labels associated in XML data

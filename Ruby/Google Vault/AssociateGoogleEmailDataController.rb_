@@ -270,6 +270,8 @@ class AssociateGoogleEmailDataController
 								item.getCustomMetadata["XmlExternalFileName"] = from_id
 								# Record XML "Tag" data as custom metadata
 								document.annotate_item(item,date_time_format)
+								# Record DocID
+								document.record_docid(item)
 							else
 								status_entry[:issue_message] = "!!! WARNING: Skipping item without associated XML file"
 								pd.logMessage(status_entry[:issue_message])

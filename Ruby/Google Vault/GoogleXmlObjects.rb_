@@ -120,7 +120,7 @@ class GoogleXmlDocument
 	attr_accessor :external_files
 
 	def initialize(document_node)
-		@doc_id = document_node.attributes["DocId"]
+		@doc_id = document_node.attributes["DocID"]
 		@tags = []
 		@external_files = []
 		# Collect tag data
@@ -166,6 +166,20 @@ class GoogleXmlDocument
 			else
 				# Store others as text
 				item_custom_metadata[tag.tag_name] = tag.tag_value
+			end
+		end
+	end
+
+	def record_docid(items)
+		items = Array(items)
+		items.each do |item|
+			if !doc_id.nil?
+				# Record <Document> node "DocID" attribute
+				item_custom_metadata = item.getCustomMetadata
+				item_custom_metadata["VaultDocID"] = doc_id
+
+				# Copy down to descendants
+				$utilities.getBulkAnnotater.putCustomMetadata("VaultDocID",doc_id,item.getDescendants,"text","user",nil,nil)
 			end
 		end
 	end
