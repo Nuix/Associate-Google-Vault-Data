@@ -35,6 +35,9 @@ end
 main_tab.appendCheckBox("apply_label_tags","Apply Tags for GMail Labels",true)
 main_tab.appendTextField("tag_prefix","Gmail Label Tag Prefix","GMailLabels")
 main_tab.enabledOnlyWhenChecked("tag_prefix","apply_label_tags")
+default_log_dir = java.io.File.new($current_case.getLocation,"AssociateGoogleVaultData").getAbsolutePath
+main_tab.appendDirectoryChooser("log_directory","Log Directory")
+main_tab.setText("log_directory",default_log_dir)
 main_tab.appendHeader("XML Files")
 main_tab.appendPathList("xml_file_paths")
 main_tab.getControl("xml_file_paths").setDirectoriesButtonVisible(false)
