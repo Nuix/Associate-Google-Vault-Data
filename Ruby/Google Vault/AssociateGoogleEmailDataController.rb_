@@ -301,8 +301,14 @@ class AssociateGoogleEmailDataController
 				annotater = $utilities.getBulkAnnotater
 				grouped_by_label.each do |label,items|
 					tag = "#{tag_prefix}|#{label}"
-					pd.logMessage("\tApplying label '#{label}' as tag '#{tag}' to #{items.size} items...")
-					annotater.addTag(tag,items)
+					items_to_tag = nil
+					if values["tags_to_descendants"]
+						items_to_tag = $utilities.getItemUtility.findItemsAndDescendants(items)
+					else
+						items_to_tag = items
+					end
+					pd.logMessage("\tApplying label '#{label}' as tag '#{tag}' to #{items_to_tag.size} items...")
+					annotater.addTag(tag,items_to_tag)
 				end
 			end
 
