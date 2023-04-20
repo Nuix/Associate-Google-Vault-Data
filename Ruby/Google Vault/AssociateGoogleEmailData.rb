@@ -35,6 +35,8 @@ end
 main_tab.appendCheckBox("apply_label_tags","Apply Tags for GMail Labels",true)
 main_tab.appendTextField("tag_prefix","Gmail Label Tag Prefix","GMailLabels")
 main_tab.enabledOnlyWhenChecked("tag_prefix","apply_label_tags")
+main_tab.appendCheckBox("tags_to_descendants","Copy applied tags to descendants",false)
+main_tab.appendCheckBox("cm_to_descendants","Copy applied custom metadata value to descendants",false)
 default_log_dir = java.io.File.new($current_case.getLocation,"AssociateGoogleVaultData").getAbsolutePath
 main_tab.appendDirectoryChooser("log_directory","Log Directory")
 main_tab.setText("log_directory",default_log_dir)

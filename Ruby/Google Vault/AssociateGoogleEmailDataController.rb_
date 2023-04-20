@@ -269,9 +269,9 @@ class AssociateGoogleEmailDataController
 								# Record XML file we used to associate this record as custom metadata
 								item.getCustomMetadata["XmlExternalFileName"] = from_id
 								# Record XML "Tag" data as custom metadata
-								document.annotate_item(item,date_time_format)
+								document.annotate_items(item,date_time_format,values["cm_to_descendants"])
 								# Record DocID
-								document.record_docid(item)
+								document.record_docid(item,values["cm_to_descendants"])
 							else
 								status_entry[:issue_message] = "!!! WARNING: Skipping item without associated XML file"
 								pd.logMessage(status_entry[:issue_message])
@@ -301,8 +301,14 @@ class AssociateGoogleEmailDataController
 				annotater = $utilities.getBulkAnnotater
 				grouped_by_label.each do |label,items|
 					tag = "#{tag_prefix}|#{label}"
-					pd.logMessage("\tApplying label '#{label}' as tag '#{tag}' to #{items.size} items...")
-					annotater.addTag(tag,items)
+					items_to_tag = nil
+					if values["tags_to_descendants"]
+						items_to_tag = $utilities.getItemUtility.findItemsAndDescendants(items)
+					else
+						items_to_tag = items
+					end
+					pd.logMessage("\tApplying label '#{label}' as tag '#{tag}' to #{items_to_tag.size} items...")
+					annotater.addTag(tag,items_to_tag)
 				end
 			end
 

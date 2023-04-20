@@ -152,25 +152,33 @@ class GoogleXmlDocument
 		return @external_files.first.file_name
 	end
 
-	def annotate_item(item,date_time_format)
+	def annotate_items(items,date_time_format,also_descendants=false)
 		# Record XML "Tag" data as custom metadata
-		item_custom_metadata = item.getCustomMetadata
+
+		to_annotate = Array(items)
+		if also_descendants
+			to_annotate += $utilities.getItemUtility.findItemsAndDescendants(to_annotate).to_a
+		end
+
 		tags.each do |tag|
 			case tag.tag_data_type
 			when "Boolean"
 				# Store as proper boolean
-				item_custom_metadata[tag.tag_name] = tag.tag_value == "True"
+				bool_value = (tag.tag_value.downcase == "true")
+				$utilities.getBulkAnnotater.putCustomMetadata(tag.tag_name,bool_value,to_annotate,"boolean","user",nil,nil)
 			when "DateTime"
 				# Store as proper Joda DateTime
-				item_custom_metadata[tag.tag_name] = date_time_format.parseDateTime(tag.tag_value)
+				datetime_value = date_time_format.parseDateTime(tag.tag_value)
+				$utilities.getBulkAnnotater.putCustomMetadata(tag.tag_name,datetime_value,to_annotate,"date-time","user",nil,nil)
 			else
 				# Store others as text
-				item_custom_metadata[tag.tag_name] = tag.tag_value
+				string_value = "#{tag.tag_value}"
+				$utilities.getBulkAnnotater.putCustomMetadata(tag.tag_name,string_value,to_annotate,"text","user",nil,nil)
 			end
 		end
 	end
 
-	def record_docid(items)
+	def record_docid(items,also_descendants=false)
 		items = Array(items)
 		items.each do |item|
 			if !doc_id.nil?
@@ -178,28 +186,11 @@ class GoogleXmlDocument
 				item_custom_metadata = item.getCustomMetadata
 				item_custom_metadata["VaultDocID"] = doc_id
 
-				# Copy down to descendants
-				$utilities.getBulkAnnotater.putCustomMetadata("VaultDocID",doc_id,item.getDescendants,"text","user",nil,nil)
+				if also_descendants
+					# Copy down to descendants
+					$utilities.getBulkAnnotater.putCustomMetadata("VaultDocID",doc_id,item.getDescendants,"text","user",nil,nil)
+				end
 			end
-		end
-	end
-
-	def annotate_items(items,date_time_format)
-		annotater = $utilities.getBulkAnnotater
-		tags.each do |tag|
-			value = ""
-			case tag.tag_data_type
-			when "Boolean"
-				# Store as proper boolean
-				value = tag.tag_value == "True"
-			when "DateTime"
-				# Store as proper Joda DateTime
-				value = date_time_format.parseDateTime(tag.tag_value)
-			else
-				# Store others as text
-				value = tag.tag_value
-			end
-			annotater.putCustomMetadata(tag.tag_name,value,items,nil)
 		end
 	end
 end
