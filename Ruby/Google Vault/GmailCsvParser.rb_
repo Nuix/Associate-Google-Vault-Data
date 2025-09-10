@@ -147,7 +147,7 @@ class GmailCsvParser
 		prepare_annotation_actions()
 		guids = {}
 		
-		CSV.foreach(@csv_file,{:headers => true}) do |record|
+		CSV.foreach(@csv_file, headers: true) do |record|
 			# Resolve items in case
 			rfc822messageid = record["Rfc822MessageId"]
 			query = "properties:\"Message-ID #{rfc822messageid}\""
